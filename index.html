@@ -150,9 +150,9 @@
     margin: 8px 0 0;
     font-size: 14px;
     color: var(--danger);
+    /* エラーの出入りで下のfooterが動かないよう、1行分の高さを常に確保する */
+    min-height: 21px;
   }
-  /* 何も起きていないときに余白だけ残さない（下に押し出す要素がない位置のため） */
-  .error:empty { display: none; }
 
   canvas {
     display: block;
@@ -274,14 +274,23 @@
     }
     if (parsed.holidays && typeof parsed.holidays === 'object') {
       Object.keys(parsed.holidays).forEach(function (key) {
-        if (!/^\d{4}-\d{2}$/.test(key)) { return; }
+        var m = /^(\d{4})-(\d{2})$/.exec(key);
+        if (!m) { return; }
+        var year = Number(m[1]);
+        var month = Number(m[2]);
+        // 13月・00月・99月のような存在しない月をここで落とす
+        if (month < 1 || month > 12) { return; }
+        // 上限を31日固定にすると2月32日のような日付が生き残り、
+        // 「件数はN日と出るのに画像には出ない」という食い違いになる
+        var maxDay = daysInMonth(year, month - 1);
         var list = parsed.holidays[key];
         if (!Array.isArray(list)) { return; }
         var cleaned = [];
         list.forEach(function (d) {
-          var n = Number(d);
-          if (Number.isInteger(n) && n >= 1 && n <= 31 && cleaned.indexOf(n) === -1) {
-            cleaned.push(n);
+          // Number(true) === 1 のような型の化けを防ぐため、数値だけを受け付ける
+          if (typeof d !== 'number') { return; }
+          if (Number.isInteger(d) && d >= 1 && d <= maxDay && cleaned.indexOf(d) === -1) {
+            cleaned.push(d);
           }
         });
         state.holidays[key] = cleaned.sort(function (a, b) { return a - b; });
@@ -290,8 +299,18 @@
   }
 
   function save() {
+    // 月を眺めただけで空配列が永続化され続けるのを防ぐ（キー1個・JSON1個は維持）
+    var holidays = {};
+    Object.keys(state.holidays).forEach(function (key) {
+      if (Array.isArray(state.holidays[key]) && state.holidays[key].length > 0) {
+        holidays[key] = state.holidays[key];
+      }
+    });
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        storeName: state.storeName,
+        holidays: holidays
+      }));
     } catch (e) {
       // 保存できなくても操作は続けられるため、ここでは何もしない
     }
@@ -367,7 +386,9 @@
     var name = state.storeName.trim();
     ctx.fillStyle = '#5A6B7A';
     ctx.font = '600 40px system-ui, -apple-system, "Segoe UI", sans-serif';
-    ctx.fillText(name !== '' ? name : '', W / 2, 120);
+    // 第4引数 maxWidth で必ずグリッド幅（左右72pxの余白）に収める。
+    // 全角30字は環境によっては1200px相当になり、指定がないと両端が切れる
+    ctx.fillText(name, W / 2, 120, GRID_W);
 
     // 見出し
     ctx.fillStyle = '#1E2733';
