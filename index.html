@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>定休日お知らせ画像メーカー</title>
+<style>
+  :root {
+    --bg: #1E2733;
+    --surface: #2A3441;
+    --text-primary: #ECF1F6;
+    --text-secondary: #9FB0C0;
+    --accent: #3FBFA0;
+    --on-accent: #0E2620;
+    --danger: #FF8A80;
+    --border: #3D4B5C;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body {
+    margin: 0;
+    padding: 16px 12px 32px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+  main {
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  h1 {
+    font-size: 18px;
+    margin: 0;
+    text-align: center;
+  }
+  .lead {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+  }
+  h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 8px;
+  }
+
+  /* 月移動ヘッダー: 左右ボタンは固定44px、ラベルが残り幅 */
+  .month-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .month-nav button {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+  .month-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .weekday-row, .day-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+  .weekday-row { margin-bottom: 2px; }
+  .weekday-row span {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 2px 0;
+  }
+  .day-grid button, .day-grid span {
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    border-radius: 6px;
+    font-family: inherit;
+    padding: 0;
+  }
+  .day-grid button {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .day-grid button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+    font-weight: 700;
+  }
+  .day-grid span { border: 1px solid transparent; }
+
+  .count {
+    margin: 12px 0 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    min-height: 21px;
+  }
+
+  label {
+    display: block;
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  input[type="text"] {
+    width: 100%;
+    font-size: 16px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: inherit;
+  }
+  .error {
+    margin: 8px 0 0;
+    font-size: 14px;
+    color: var(--danger);
+  }
+  /* 何も起きていないときに余白だけ残さない（下に押し出す要素がない位置のため） */
+  .error:empty { display: none; }
+
+  canvas {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #FFFFFF;
+  }
+
+  .save-btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--on-accent);
+    cursor: pointer;
+    font-family: inherit;
+    padding: 12px;
+  }
+  footer {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>定休日お知らせ画像メーカー</h1>
+  <p class="lead">休みの日をタップして店名を入れると、貼れるお知らせ画像になります。</p>
+
+  <section class="panel">
+    <h2>1. 今月の休みをタップ</h2>
+    <div class="month-nav">
+      <button type="button" id="prev-month" aria-label="前の月">◀</button>
+      <div class="month-label" id="month-label">－</div>
+      <button type="button" id="next-month" aria-label="次の月">▶</button>
+    </div>
+    <div class="weekday-row" aria-hidden="true">
+      <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+    </div>
+    <div class="day-grid" id="day-grid"></div>
+    <p class="count" id="count"></p>
+  </section>
+
+  <section class="panel">
+    <h2>2. 店名を入れる</h2>
+    <label for="store-name">店名（画像の上に入ります）</label>
+    <input type="text" id="store-name" maxlength="30" placeholder="例: カフェ ひだまり" autocomplete="off">
+  </section>
+
+  <section class="panel">
+    <h2>3. 画像を保存</h2>
+    <canvas id="preview" width="1080" height="1080"></canvas>
+    <p class="count" id="preview-note">この画像がPNGで保存されます（1080×1080）。</p>
+    <button type="button" class="save-btn" id="save">PNGで保存</button>
+    <p class="error" id="error" role="status"></p>
+  </section>
+
+  <footer>入力内容はこのブラウザの中だけに保存されます（外部に送信しません）。</footer>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'holiday-notice-image-maker';
+  var WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+  var monthLabel = document.getElementById('month-label');
+  var dayGrid = document.getElementById('day-grid');
+  var countEl = document.getElementById('count');
+  var storeInput = document.getElementById('store-name');
+  var errorEl = document.getElementById('error');
+  var canvas = document.getElementById('preview');
+  var ctx = canvas.getContext('2d');
+
+  var today = new Date();
+  var viewYear = today.getFullYear();
+  var viewMonth = today.getMonth(); // 0-11
+
+  var state = { storeName: '', holidays: {} };
+
+  function monthKey(y, m) {
+    return y + '-' + String(m + 1).padStart(2, '0');
+  }
+
+  function currentHolidays() {
+    var key = monthKey(viewYear, viewMonth);
+    if (!Array.isArray(state.holidays[key])) {
+      state.holidays[key] = [];
+    }
+    return state.holidays[key];
+  }
+
+  function load() {
+    var raw;
+    try {
+      raw = window.localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      return; // プライベートモード等で読めない場合は初期状態のまま進む
+    }
+    if (!raw) { return; }
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (!parsed || typeof parsed !== 'object') { return; }
+    if (typeof parsed.storeName === 'string') {
+      state.storeName = parsed.storeName.slice(0, 30);
+    }
+    if (parsed.holidays && typeof parsed.holidays === 'object') {
+      Object.keys(parsed.holidays).forEach(function (key) {
+        if (!/^\d{4}-\d{2}$/.test(key)) { return; }
+        var list = parsed.holidays[key];
+        if (!Array.isArray(list)) { return; }
+        var cleaned = [];
+        list.forEach(function (d) {
+          var n = Number(d);
+          if (Number.isInteger(n) && n >= 1 && n <= 31 && cleaned.indexOf(n) === -1) {
+            cleaned.push(n);
+          }
+        });
+        state.holidays[key] = cleaned.sort(function (a, b) { return a - b; });
+      });
+    }
+  }
+
+  function save() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      // 保存できなくても操作は続けられるため、ここでは何もしない
+    }
+  }
+
+  function daysInMonth(y, m) {
+    return new Date(y, m + 1, 0).getDate();
+  }
+
+  function renderCalendar() {
+    monthLabel.textContent = viewYear + '年' + (viewMonth + 1) + '月';
+
+    var firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+    var total = daysInMonth(viewYear, viewMonth);
+    var holidays = currentHolidays();
+    // 最終日が属する行までしか描かない（末尾に空行を作らない）
+    var rows = Math.ceil((firstWeekday + total) / 7);
+
+    dayGrid.textContent = '';
+    var frag = document.createDocumentFragment();
+
+    for (var i = 0; i < rows * 7; i++) {
+      var day = i - firstWeekday + 1;
+      if (day < 1 || day > total) {
+        var blank = document.createElement('span');
+        blank.setAttribute('aria-hidden', 'true');
+        frag.appendChild(blank);
+        continue;
+      }
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = String(day);
+      btn.dataset.day = String(day);
+      var on = holidays.indexOf(day) !== -1;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.setAttribute('aria-label', (viewMonth + 1) + '月' + day + '日' + (on ? '（休業日）' : ''));
+      frag.appendChild(btn);
+    }
+
+    dayGrid.appendChild(frag);
+    countEl.textContent = '今月の休業日: ' + holidays.length + '日';
+  }
+
+  // ---- canvas 描画 ----
+  var W = 1080;
+  var PAD = 72;
+  var GRID_W = W - PAD * 2;          // 936
+  var COL_W = GRID_W / 7;            // 133.71
+  var HEAD_H = 60;
+  var BAND_TOP = 292;   // 曜日ヘッダーの上端
+  var BAND_H = 698;     // 曜日ヘッダー＋日付行に割り当てる高さ
+  var LEGEND_Y = 1024;  // 凡例の中心
+  var MAX_ROW_H = 132;
+
+  function drawImage() {
+    var holidays = currentHolidays();
+    var firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+    var total = daysInMonth(viewYear, viewMonth);
+    var rows = Math.ceil((firstWeekday + total) / 7);
+    // 4〜6行のどの月でも同じ帯に収まるよう行高を決め、帯の中で上下中央に置く
+    var rowH = Math.min(MAX_ROW_H, (BAND_H - HEAD_H) / rows);
+    var gridTop = BAND_TOP + (BAND_H - (HEAD_H + rowH * rows)) / 2;
+    var markR = Math.min(44, rowH * 0.4);
+
+    ctx.clearRect(0, 0, W, W);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, W, W);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 店名
+    var name = state.storeName.trim();
+    ctx.fillStyle = '#5A6B7A';
+    ctx.font = '600 40px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.fillText(name !== '' ? name : '', W / 2, 120);
+
+    // 見出し
+    ctx.fillStyle = '#1E2733';
+    ctx.font = '700 64px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.fillText((viewMonth + 1) + '月の定休日', W / 2, 210);
+
+    // 曜日ヘッダー
+    ctx.font = '600 32px system-ui, -apple-system, "Segoe UI", sans-serif';
+    for (var w = 0; w < 7; w++) {
+      ctx.fillStyle = w === 0 ? '#C62828' : (w === 6 ? '#2C6FB5' : '#5A6B7A');
+      ctx.fillText(WEEKDAYS[w], PAD + COL_W * (w + 0.5), gridTop + HEAD_H / 2);
+    }
+
+    // 日付
+    ctx.font = '600 42px system-ui, -apple-system, "Segoe UI", sans-serif';
+    for (var i = 0; i < rows * 7; i++) {
+      var day = i - firstWeekday + 1;
+      if (day < 1 || day > total) { continue; }
+      var col = i % 7;
+      var row = Math.floor(i / 7);
+      var cx = PAD + COL_W * (col + 0.5);
+      var cy = gridTop + HEAD_H + rowH * row + rowH / 2;
+      var isHoliday = holidays.indexOf(day) !== -1;
+
+      if (isHoliday) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, markR, 0, Math.PI * 2);
+        ctx.fillStyle = '#C62828';
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+      } else if (col === 0) {
+        ctx.fillStyle = '#C62828';
+      } else if (col === 6) {
+        ctx.fillStyle = '#2C6FB5';
+      } else {
+        ctx.fillStyle = '#1E2733';
+      }
+      ctx.fillText(String(day), cx, cy);
+    }
+
+    // 凡例（行数によらず固定位置。行高を可変にして帯に収めているため重ならない）
+    var legendY = LEGEND_Y;
+    ctx.beginPath();
+    ctx.arc(W / 2 - 130, legendY, 20, 0, Math.PI * 2);
+    ctx.fillStyle = '#C62828';
+    ctx.fill();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#5A6B7A';
+    ctx.font = '400 32px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.fillText('印の日はお休みです', W / 2 - 96, legendY);
+    ctx.textAlign = 'center';
+  }
+
+  function fileName() {
+    return 'teikyubi-' + monthKey(viewYear, viewMonth) + '.png';
+  }
+
+  function render() {
+    renderCalendar();
+    drawImage();
+  }
+
+  // ---- イベント ----
+  dayGrid.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-day]');
+    if (!btn) { return; }
+    var day = Number(btn.dataset.day);
+    var holidays = currentHolidays();
+    var idx = holidays.indexOf(day);
+    if (idx === -1) {
+      holidays.push(day);
+      holidays.sort(function (a, b) { return a - b; });
+    } else {
+      holidays.splice(idx, 1);
+    }
+    var on = idx === -1;
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', (viewMonth + 1) + '月' + day + '日' + (on ? '（休業日）' : ''));
+    countEl.textContent = '今月の休業日: ' + holidays.length + '日';
+    save();
+    // グリッド全体を作り直すとキーボードの位置（フォーカス）が失われるため、
+    // 押した1マスと件数だけを書き換えて画像を描き直す
+    drawImage();
+  });
+
+  document.getElementById('prev-month').addEventListener('click', function () {
+    viewMonth--;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    render();
+  });
+
+  document.getElementById('next-month').addEventListener('click', function () {
+    viewMonth++;
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    render();
+  });
+
+  storeInput.addEventListener('input', function () {
+    state.storeName = storeInput.value.slice(0, 30);
+    save();
+    drawImage();
+  });
+
+  document.getElementById('save').addEventListener('click', function () {
+    errorEl.textContent = '';
+    var url;
+    try {
+      url = canvas.toDataURL('image/png');
+    } catch (e) {
+      errorEl.textContent = '⚠ 画像を書き出せませんでした。ブラウザを変えてお試しください。';
+      return;
+    }
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = fileName();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+
+  load();
+  storeInput.value = state.storeName;
+  render();
+})();
+</script>
+</body>
+</html>
