@@ -150,8 +150,10 @@
     margin: 8px 0 0;
     font-size: 14px;
     color: var(--danger);
-    /* エラーの出入りで下のfooterが動かないよう、1行分の高さを常に確保する */
-    min-height: 21px;
+    /* エラーの出入りで下のfooterが動かないよう、あらかじめ高さを確保する。
+       375px幅ではエラー文言が2行になりうるので2行分（21px×2）を取る。
+       フォント幅は環境で変わるため、1行に収まる前提では組まない */
+    min-height: 42px;
   }
 
   canvas {
@@ -498,7 +500,7 @@
     try {
       url = canvas.toDataURL('image/png');
     } catch (e) {
-      errorEl.textContent = '⚠ 画像を書き出せませんでした。ブラウザを変えてお試しください。';
+      errorEl.textContent = '⚠ 保存に失敗しました。ブラウザを変えてお試しください';
       return;
     }
     var a = document.createElement('a');
