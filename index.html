@@ -193,7 +193,7 @@
   <p class="lead">休みの日をタップして店名を入れると、貼れるお知らせ画像になります。</p>
 
   <section class="panel">
-    <h2>1. 今月の休みをタップ</h2>
+    <h2>1. 休みの日をタップ</h2>
     <div class="month-nav">
       <button type="button" id="prev-month" aria-label="前の月">◀</button>
       <div class="month-label" id="month-label">－</div>
@@ -246,6 +246,11 @@
 
   function monthKey(y, m) {
     return y + '-' + String(m + 1).padStart(2, '0');
+  }
+
+  // 表示中の月に連動した件数の文言（画像側の「○月の定休日」と月をそろえる）
+  function countText(n) {
+    return (viewMonth + 1) + '月の休業日: ' + n + '日';
   }
 
   function currentHolidays() {
@@ -353,7 +358,7 @@
     }
 
     dayGrid.appendChild(frag);
-    countEl.textContent = '今月の休業日: ' + holidays.length + '日';
+    countEl.textContent = countText(holidays.length);
   }
 
   // ---- canvas 描画 ----
@@ -469,7 +474,7 @@
     var on = idx === -1;
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     btn.setAttribute('aria-label', (viewMonth + 1) + '月' + day + '日' + (on ? '（休業日）' : ''));
-    countEl.textContent = '今月の休業日: ' + holidays.length + '日';
+    countEl.textContent = countText(holidays.length);
     save();
     // グリッド全体を作り直すとキーボードの位置（フォーカス）が失われるため、
     // 押した1マスと件数だけを書き換えて画像を描き直す
